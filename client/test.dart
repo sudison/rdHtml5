@@ -3,6 +3,8 @@
 #source('rdViewer.dart');
 #source('RfbProtocol.dart');
 #source('RfbClient.dart');
+#source('utils.dart');
+#source('Base64.dart');
 
 void main() {
   RfbClient client = new RfbClient();
@@ -11,4 +13,4 @@ void main() {
   message.type = "initialize";
   message.data = ["localhost", '8080'];
   client.ProcessMessage(message);
-}
+} 

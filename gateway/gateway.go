@@ -6,6 +6,7 @@ import (
     "flag"
 	"net/http"
 	"text/template"
+    "encoding/base64"
 )
 
 type webSocketConn struct {
@@ -18,7 +19,9 @@ func (ws *webSocketConn) readMessage() []byte {
         log.Print("Failed to read message", err)
         return nil
    }
-   return []byte(message) 
+   decoded,_ := base64.StdEncoding.DecodeString(message)
+   log.Print("read from frontend", len(decoded));
+   return decoded
 }
 
 func (ws *webSocketConn) writeMessage(data []byte) bool {
@@ -35,14 +38,16 @@ type netConn struct {
 }
 
 func (nc *netConn) readMessage() []byte {
-   data :=make([]byte, 100)
+   data :=make([]byte, 1000)
    len, err := nc.conn.Read(data) 
+   log.Print("read data ", len)
    if err != nil {
     log.Print("Failed to read data from backend", err)
     return nil
     }
 
-    return data[:len]
+    decoded := base64.StdEncoding.EncodeToString(data[:len])
+    return []byte(decoded)
 }
 
 func (nc *netConn) writeMessage(data []byte) bool {
@@ -82,17 +87,17 @@ func (gw *gateway) read(conn connWrapper, snd chan []byte) {
 func (gw *gateway) handleDataExchange() {
     for {
         select {
-            case sendMsgToFront := <- gw.send:
-                msg := []byte("hello ")
-                msg1 := append(msg,sendMsgToFront...)
+            case sendMsgToFront := <- gw.recv:
+                msg1 := sendMsgToFront
+                log.Print("send to front")
                 gw.frontend.writeMessage(msg1)
-            case sendMsgToBack := <- gw.recv:
+            case sendMsgToBack := <- gw.send:
                 gw.backend.writeMessage(sendMsgToBack)
         }
     }
 }
 func start(c *websocket.Conn) {
-    backend, err := net.Dial("tcp", ":8100")
+    backend, err := net.Dial("tcp", ":5900")
     if err != nil {
         log.Fatal("Failed to connect to backend", err)
     }
@@ -110,6 +115,7 @@ func start(c *websocket.Conn) {
     go gw.read(gw.backend, gw.recv)
     go gw.handleDataExchange()
     gw.read(gw.frontend, gw.send)
+    backend.Close() 
 }
 
 var addr = flag.String("addr", ":8080", "http service address")
