@@ -17,6 +17,22 @@ class _RfbProtocolVersion {
   }
 }
 
+class RFBFrameRectUpdate {
+  int x;
+  int y;
+  int width;
+  int height;
+  int encondingType;
+  List<int> pixelData;
+}
+
+class RFBFrameBufferUpdate {
+  List<RFBFrameRectUpdate> Rects;
+  RFBFrameBufferUpdate(int num) {
+    Rects = new List<RFBFrameRectUpdate>(num);
+  }
+}
+
 class pixelFormat {
   int bpp;
   int depth;
@@ -125,6 +141,95 @@ class RfbProtocol {
       serverName = name.toString();
     }
    
+    if (format.bpp != 32) {
+      print("can't handle this format: format.bpp: " + format.bpp);
+    }
     return [true, null];
   }
+  
+  createFrameBufferUpdateRequest(int x, int y,int incremental, int width, int height) {
+    List<int> message = new List<int>(10);
+    message[0] = 3;
+    message[1] = incremental;;
+    ConvertU16(x, message, 2);
+    ConvertU16(y, message, 4);
+    ConvertU16(width, message, 6);
+    ConvertU16(height, message, 8);
+    return message;
+  }
+  
+  _processFrameBufferUpdate(List<int> data, List<int> currentData) {
+    List<int> stream = null;
+    if (currentData != null) {
+      stream = currentData;
+    } else {
+      stream = data;
+    }
+    int rectNum = U16BigToInt(stream, 2);
+    RFBFrameBufferUpdate update = new RFBFrameBufferUpdate(rectNum);
+   
+    for (int i = 0, index = 4; i < rectNum; i++) {
+      RFBFrameRectUpdate rect = new RFBFrameRectUpdate();
+      rect.x = U16BigToInt(stream, index);
+      index = index +2;
+      rect.y = U16BigToInt(stream, index);
+      index = index +2;
+      rect.width = U16BigToInt(stream, index);
+      index = index + 2;
+      rect.height = U16BigToInt(stream, index);
+      index = index + 2;
+      rect.encondingType = U32BigToInt(stream, index);
+      index = index + 4;
+      print("rect num: " + rectNum +"," + rect.width+ "," + rect.height + ", length: " + data.length);
+      int bytes = rect.width * rect.height * (format.bpp~/8);
+      if (currentData == null) {
+        currentData = new List<int>();
+      }
+      
+      if ((data.length + currentData.length) < (16 + bytes)) {
+        print("less: " + data.length +"," +currentData.length);
+        currentData.addAll(data);
+        return [false, currentData];
+      }
+     
+      currentData.addAll(data);
+      print("got all the data: " + currentData.length);
+      rect.pixelData = new List<int>(bytes);
+      for(int pixel = 0 ; pixel < bytes; ) {
+        int pixelData = 0;
+        if (format.bef != 0) {
+          if (format.bpp == 32) {
+            pixelData = U32BigToInt(stream, index);
+            index = index + 4;
+          }
+        } else {
+          if (format.bpp == 32) {
+            pixelData = U32ToInt(stream, index);
+            index = index + 4;
+          }
+        }
+        
+        rect.pixelData[pixel++] = (pixelData >> format.redShift) & format.redShift;
+        rect.pixelData[pixel++] = (pixelData >> format.greenShift) & format.greenMax;
+        rect.pixelData[pixel++] = (pixelData >> format.blueShift) & format.blueMax;
+        rect.pixelData[pixel++] = 255; //alpha channel
+      }
+      update.Rects[i] = rect;
+    }
+    return [true, update];
+  }
+  
+  processServerMessage(List<int> data, List<int> currentData) {
+    List<int> stream;
+    if (currentData != null) {
+      stream = currentData;
+    }else {
+      stream = data;
+    }
+    int messageType = stream[0];
+    if (messageType == 0) {
+      return _processFrameBufferUpdate(data, currentData);
+    }
+  }
+  
 }

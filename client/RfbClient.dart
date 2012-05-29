@@ -11,12 +11,17 @@ class RFBClientMessage {
 class RfbClient {
   String currentState; //"initial","connecting","connected","getVersion"
   var states;
-  var currentReceivedData;
+  List<int> currentReceivedData;
   RfbProtocol rfb;
   WebSocket _ws;
+  rdViewer _viewer;
   
   _initialStateCallBack(data) {
     
+  }
+  
+  setViewer(rdViewer viewer) {
+    _viewer = viewer;
   }
   
   _sendMessageToServer(data) {
@@ -57,7 +62,24 @@ class RfbClient {
   }
   
   _serverInit(data) {
-    return rfb.serverInit(data, null);
+    var result = rfb.serverInit(data, null);
+    //send frameupdate
+    _viewer.initializeScreen(rfb.frameBufferWidth, rfb.frameBufferHeight);
+    _sendMessageToServer(rfb.createFrameBufferUpdateRequest(0,0,0,
+      rfb.frameBufferWidth, rfb.frameBufferHeight));
+    return result;
+  }
+  
+  _readyStateCallBack(data) {
+    var result = rfb.processServerMessage(data, currentReceivedData);
+    if (result[0] == true) {
+      RFBFrameBufferUpdate update = result[1];
+      for(int i = 0; i < update.Rects.length; i++) {
+        RFBFrameRectUpdate rect = update.Rects[i];
+        _viewer.drawFrame(rect.pixelData, rect.x, rect.y, rect.width, rect.height );
+      }
+    }
+    return result;
   }
   
   RfbClient() {
@@ -65,7 +87,8 @@ class RfbClient {
                "getVersion":[_getVersionStateCallBack, "security"],
                "security":[_securityHandShakingCallBack, "securityResult"],
                "securityResult":[_securityResult, "serverInit"],
-               "serverInit":[_serverInit, "ready"]};
+               "serverInit":[_serverInit, "ready"],
+               "ready":[_readyStateCallBack, "ready"]};
     currentState = "initial";
     rfb = new RfbProtocol();
     currentReceivedData = null;

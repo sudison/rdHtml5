@@ -38,7 +38,7 @@ type netConn struct {
 }
 
 func (nc *netConn) readMessage() []byte {
-   data :=make([]byte, 1000)
+   data :=make([]byte, 300000)
    len, err := nc.conn.Read(data) 
    log.Print("read data ", len)
    if err != nil {
