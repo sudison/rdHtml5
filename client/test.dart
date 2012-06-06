@@ -6,6 +6,8 @@
 #source('RfbClient.dart');
 #source('utils.dart');
 #source('Base64.dart');
+#source('RFBStateMachine.dart');
+#source('ByteStream.dart');
 
 
 void main() {
@@ -16,5 +18,5 @@ void main() {
   message.type = "initialize";
   message.data = ["localhost", '8080'];
   client.ProcessMessage(message);
-  
+
 } 

@@ -83,14 +83,7 @@ class RfbClient {
   }
   
   RfbClient() {
-    states =  {"initial":[_initialStateCallBack, "getVersion"], 
-               "getVersion":[_getVersionStateCallBack, "security"],
-               "security":[_securityHandShakingCallBack, "securityResult"],
-               "securityResult":[_securityResult, "serverInit"],
-               "serverInit":[_serverInit, "ready"],
-               "ready":[_readyStateCallBack, "ready"]};
-    currentState = "initial";
-    rfb = new RfbProtocol();
+    rfb = new RfbProtocol(_processDataFromClient);
     currentReceivedData = null;
   }
   
@@ -101,12 +94,10 @@ class RfbClient {
 
     _ws = new WebSocket("ws://" + ServerInfo[0] + ':' + ServerInfo[1] + "/ws");
     _ws.on.open.add((a) {
-      states[currentState][0](null);
-      currentState = states[currentState][1];
      });
       
      _ws.on.close.add((c) {
-        currentState = "closed";
+        
      });
       
      _ws.on.message.add((m){
@@ -116,23 +107,16 @@ class RfbClient {
   
   _processDataFromServer(String data) {
     List<int> decoded = Base64.decode(data);
-    var callBack = states[currentState];
-    if (callBack == null) {
-      return null;
-    }
-
-    var rets = callBack[0](decoded);
-    if (rets[0] == true) {
-      currentReceivedData = null;
-      currentState = states[currentState][1];
-      return;
-    } else {
-      currentReceivedData = rets[1];
-    }
-    
+    RFBInternalMessage message = new RFBInternalMessage(
+      RFBInternalMessage.READFROMSERVER, 
+      decoded);
+    rfb.processMessage(message);
   }
   
   _processDataFromClient(List<int> data) {
+    if (data == null) {
+      return;
+    }
     String encoded = Base64.encode(data);
     _ws.send(encoded);
   }

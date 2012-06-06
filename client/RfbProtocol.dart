@@ -1,20 +1,60 @@
 
+class RFBSecurityType {
+  static final int INVALID = 0;
+  static final int NONE = 1;
+  static final int AUTHENTICATION = 2;
+  //TODO: add other types
+}
+
 class _RfbProtocolVersion {
-  String protocol;
-  int major;
-  int minor;
-  List<int> rawData;
-  _RfbProtocolVersion(List<int> data) {
-    StringBuffer pro = new StringBuffer();
-    pro.addCharCode(data[0]);
-    pro.addCharCode(data[1]);
-    pro.addCharCode(data[2]);
-    protocol = pro.toString();
-    
-    major =  data[4] * 100 + data[5] * 10 + data[6];
-    minor =  data[8] * 100 + data[9] * 10 + data[10];
-    rawData = data;
+  static final int length = 12;
+  String _protocol;
+  int _major;
+  int _minor;
+  _RfbProtocolVersion() {
   }
+  
+  List<int> toData() {
+    List<int> _data = new List<int>(length);
+    _data[0] = _protocol.charCodeAt(0);
+    _data[1] = _protocol.charCodeAt(1);
+    _data[2] = _protocol.charCodeAt(2);
+    _data[3] = ' '.charCodes()[0];
+    _data[4] = 0 + 0x30;
+    _data[5] = 0 + 0x30;
+    _data[6] = _major + 0x30;
+    _data[7] = '.'.charCodes()[0];
+    _data[8] = 0 + 0x30;
+    _data[9] = 0 + 0x30;
+    _data[10] = _minor + 0x30;
+    _data[11] = '\n'.charCodes()[0];
+    return _data;
+  }
+  
+  set protocol(String pro) => _protocol = pro;
+  String get protocol() => _protocol;
+  
+  set major(int mj) => _major = mj;
+  int get major() => _major;
+  
+  set minor(int mi) => _minor = mi;
+  int get minor() => _minor;
+}
+
+class RFBInternalMessage {
+  static final int SENDTOSERVER = 1;
+  static final int READFROMSERVER = 2;
+  static final int INPUTMESSAGE = 3;
+  int _type;
+  List<int> _data;
+  
+  RFBInternalMessage(int type, List<int> data) {
+    _type = type;
+    _data = data;
+  }
+  
+  get type() => _type;
+  get data() => _data;
 }
 
 class RFBFrameRectUpdate {
@@ -53,90 +93,188 @@ class RfbProtocol {
   int frameBufferHeight;
   String serverName;
   pixelFormat format;
+  StateMachine _stateMachine;
+  ByteStream _bytes;
+  var _sendToServer;
   
-  RfbProtocal() {
+  RfbProtocol(callBack) {
+    _stateMachine = new StateMachine();
+    _stateMachine.registerState(RFBStates.START, RFBStates.STARTEVENT, 
+      RFBStates.HANDSHAKING_PROTOCOLVERSION, startRFB);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_PROTOCOLVERSION,
+      RFBStates.DATARECEIVED, RFBStates.HANDSHAKING_PROTOCOLVERSION, readProtocolVersion);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_PROTOCOLVERSION, 
+      RFBStates.MOVEON, RFBStates.HANDSHAKING_SECURITY, writeProtocolVersion);
+    
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY, 
+      RFBStates.DATARECEIVED, RFBStates.HANDSHAKING_SECURITY, readSecurityType);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY,
+      RFBStates.MOVEON, RFBStates.HANDSHAKING_SECURITY_RESULT, writeSecurityType);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY,
+      RFBStates.HANDSHAKING_FAILED, RFBStates.TERMINATED, terminated);
+    
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY_RESULT,
+      RFBStates.DATARECEIVED, RFBStates.HANDSHAKING_SECURITY_RESULT, readSecurityResult);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY_RESULT,
+      RFBStates.MOVEON, RFBStates.HANDSHAKING_FINISHED, WriteclientInit);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_SECURITY_RESULT,
+      RFBStates.HANDSHAKING_FAILED, RFBStates.TERMINATED, terminated);
+    
+    _stateMachine.registerState(RFBStates.HANDSHAKING_FINISHED,
+      RFBStates.DATARECEIVED, RFBStates.HANDSHAKING_FINISHED, ReadServerInit);
+    _stateMachine.registerState(RFBStates.HANDSHAKING_FINISHED,
+      RFBStates.MOVEON, RFBStates.READY, ready);
+    
+    _stateMachine.registerState(RFBStates.READY,
+      RFBStates.DATARECEIVED, RFBStates.READY, processServerMessage);
+    
+    _stateMachine.setInitialState(RFBStates.START);
+    _stateMachine.transit(RFBStates.STARTEVENT);
+    
+    _bytes = new ByteStream();
+    _sendToServer = callBack;
   }
   
-  readProtocolVersion(List<int> data, String currentData) {
-    _versionFromServer = new _RfbProtocolVersion(data);
-    return [true, null];
+  processMessage(RFBInternalMessage message) {
+    if (message.type == RFBInternalMessage.READFROMSERVER) {
+      _bytes.AddData(message.data);
+      _stateMachine.transit(RFBStates.DATARECEIVED);
+    }
+  }
+  
+  startRFB() {
+    print("starting event");
+  }
+  
+  terminated() {
+    print("terminated");
+  }
+  
+  ready() {
+    print("ready");
+  }
+  
+  readProtocolVersion() {
+    if (_bytes.size < _RfbProtocolVersion.length) {
+      return;
+    }
+    
+    _versionFromServer = new _RfbProtocolVersion();
+    StringBuffer pro = new StringBuffer();
+    pro.addCharCode(_bytes.ReadByte());
+    pro.addCharCode(_bytes.ReadByte());
+    pro.addCharCode(_bytes.ReadByte());
+    _versionFromServer.protocol = pro.toString();
+    
+    //skip space
+    _bytes.Advance(1);
+    _versionFromServer.major =  (_bytes.ReadByte() - 0x30) * 100 + 
+        (_bytes.ReadByte() - 0x30) * 10 + (_bytes.ReadByte() - 0x30);
+    
+    //skip .
+    _bytes.Advance(1);
+    
+    _versionFromServer.minor =  (_bytes.ReadByte() - 0x30) * 100 + 
+        (_bytes.ReadByte() - 0x30) * 10 + (_bytes.ReadByte() - 0x30);
+    
+    _bytes.Tail();
+    return RFBStates.MOVEON;
   }
   
   writeProtocolVersion() {
-    //reply the same version got from server
-    return _versionFromServer.rawData;
+    _sendToServer(_versionFromServer.toData());
   }
   
-  readSecurityType(List<int> data, String currentData) {
+  readSecurityType() {
     if (_versionFromServer.minor >= 7) {
       //version onwards 3.7
-      int numTypes = data[0];
+      int numTypes = _bytes.ReadByte();
       if (numTypes == 0) {
-        //connection failed
-        return [false, null];
+        return RFBStates.TERMINATED;
       }
       _securityTypes = new List<int>(numTypes);
       for (int i = 0; i < numTypes; i++) {
-        _securityTypes[i] = (data[i + 1]);
+        _securityTypes[i] = _bytes.ReadByte();
       }
     } else {
-      //convert big endian to little endian
-      int type = U32BigToInt(data, 0);
+      int type = _bytes.ReadU32();
+      if (type == 0) {
+        return RFBStates.TERMINATED;
+      }
       _securityTypes = new List<int>(1);
       _securityTypes[0] = (type);
     }
-    return [true, data];
+    return RFBStates.MOVEON;
   }
   
   writeSecurityType() {
-    int securityType = 0;
+    int securityType = RFBSecurityType.INVALID;
     if (_versionFromServer.minor < 7) {
       return null;
     }
+    //TODO: add VNC authentication support
     for (int i = 0; i < _securityTypes.length; i++) {
-      if (_securityTypes[i] == 1) {
-        securityType = 1;
+      if (_securityTypes[i] == RFBSecurityType.NONE) {
+        securityType = RFBSecurityType.NONE;
       }
     }
-    if (securityType != 1) {
+    if (securityType != RFBSecurityType.NONE) {
       print("can't use None security type");
     }
     List<int> u8list = new List(1);
     u8list[0] = securityType;
-    return u8list;
+    _sendToServer(u8list);
   }
   
-  readSecurityResult(data, _) {
-    return [true, U32BigToInt(data, 0)];
+  readSecurityResult() {
+    int result = _bytes.ReadU32();
+    if (result == 0) {
+      return RFBStates.MOVEON;
+    } else {
+      return RFBStates.HANDSHAKING_FAILED;
+    }
   }
   
-  clientInit() {
+  WriteclientInit() {
     List<int> cl = new List<int>(1);
     //no share with other clients
     cl[0] = 1;
-    return cl;
+    _sendToServer(cl);
   }
   
-  serverInit(List<int> data, _) {
-    frameBufferWidth = U16BigToInt(data, 0);
-    frameBufferHeight = U16BigToInt(data, 2);
-    format = new pixelFormat();
-    format.bpp = data[4];
-    format.depth = data[5];
-    format.bef = data[6];
-    format.tcf = data[7];
-    format.redMax = U16BigToInt(data, 8);
-    format.greenMax = U16BigToInt(data, 10);
-    format.blueMax = U16BigToInt(data, 12);
-    format.redShift = data[14];
-    format.greenShift = data[15];
-    format.blueShift = data[16];
+  ReadServerInit() {
+    if (_bytes.size < 24) {
+      return;
+    }
     
-    int nameLength = U32BigToInt(data, 17);
+    int nameLength = _bytes.PeekReadU32(20);
+    if (_bytes.size < (24 + nameLength)) {
+      return;
+    }
+    
+    //we got all the data
+    frameBufferWidth = _bytes.ReadU16();
+    frameBufferHeight = _bytes.ReadU16();
+    format = new pixelFormat();
+    format.bpp = _bytes.ReadByte();
+    format.depth = _bytes.ReadByte();
+    format.bef = _bytes.ReadByte();
+    format.tcf = _bytes.ReadByte();
+    format.redMax = _bytes.ReadU16();
+    format.greenMax = _bytes.ReadU16();
+    format.blueMax = _bytes.ReadU16();
+    format.redShift = _bytes.ReadByte();
+    format.greenShift = _bytes.ReadByte();
+    format.blueShift = _bytes.ReadByte();
+    
+    //skip pading
+    _bytes.Advance(3);
+    
+    nameLength = _bytes.ReadU32();
     if (nameLength != 0) {
       StringBuffer name = new StringBuffer();
       for(int i = 0 ; i < nameLength; i++) {
-        name.addCharCode(data[18+i]);
+        name.addCharCode(_bytes.ReadByte());
       }
       serverName = name.toString();
     }
@@ -144,7 +282,7 @@ class RfbProtocol {
     if (format.bpp != 32) {
       print("can't handle this format: format.bpp: " + format.bpp);
     }
-    return [true, null];
+    return RFBStates.MOVEON;
   }
   
   createFrameBufferUpdateRequest(int x, int y,int incremental, int width, int height) {
@@ -220,6 +358,7 @@ class RfbProtocol {
   }
   
   processServerMessage(List<int> data, List<int> currentData) {
+    /*
     List<int> stream;
     if (currentData != null) {
       stream = currentData;
@@ -229,7 +368,7 @@ class RfbProtocol {
     int messageType = stream[0];
     if (messageType == 0) {
       return _processFrameBufferUpdate(data, currentData);
-    }
+    }*/
   }
   
 }

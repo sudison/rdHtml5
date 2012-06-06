@@ -1,8 +1,8 @@
-U32BigToInt(List<int> data, int offset) {
-  return ((data[offset] << 24) & 0xff000000) + 
-         ((data[offset+1] << 16) & 0xff0000) +
-         ((data[offset+2] << 8) & 0xff00) + 
-         (data[offset+3] & 0xff);
+U32BigToInt(int byte1, int byte2, int byte3, int byte4) {
+  return ((byte1 << 24) & 0xff000000) + 
+         ((byte2 << 16) & 0xff0000) +
+         ((byte3 << 8) & 0xff00) + 
+         (byte4 & 0xff);
 }
 
 U32ToInt(List<int> data, int offset) {
@@ -11,8 +11,9 @@ U32ToInt(List<int> data, int offset) {
          ((data[offset + 2] << 16) & 0xff0000) + 
          ((data[offset + 3] << 24) & 0xff000000);
 }
-U16BigToInt(List<int> data, int offset) {
-  return ((data[offset] << 8) & 0xff00) + (data[offset+1] & 0xff);
+
+U16BigToInt(int lsb, int msb) {
+  return ((lsb << 8) & 0xff00) + (msb & 0xff);
 }
 
 U16ToBigEndian(int data) {
