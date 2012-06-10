@@ -2,7 +2,9 @@
 class rdViewer {
   CanvasElement canvas;
   CanvasRenderingContext2D ctx;
+  var _logger;
   rdViewer() {
+    _logger = Logging.getLogger("viewer");
     canvas = document.query("#canvas");
     ctx = canvas.getContext("2d");
    }
@@ -14,9 +16,9 @@ class rdViewer {
   }
   
   drawFrame(List<int> updatedRect, int x, int y, int width, int height) {
-    ctx.clearRect(0, 0, width, height);
-    ctx.beginPath();
-    ImageData data = ctx.createImageData(width, height);
+    
+    _logger.Debug("start draw frame:");
+    ImageData data = ctx.getImageData(x, y, width, height);
     
     var rawPixels = data.data;
     for (int i=0; i< updatedRect.length;) {
@@ -29,8 +31,8 @@ class rdViewer {
       rawPixels[i] = updatedRect[i];
       i++;
     }
-    ctx.putImageData(data, x, y);
-    ctx.closePath();
+    ctx.putImageData(data, x,y);
+    _logger.Debug("finished draw frame" + " x: " + x + ";y:" +y + ";width:" + width +";h:" + height);
   }
   
 }

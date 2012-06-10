@@ -6,6 +6,21 @@ class RFBSecurityType {
   //TODO: add other types
 }
 
+class RFBServerMessage {
+  static final int FRAMEBUFFERUPDATE = 0;
+  static final int SETCOLOURMAPENTRIES = 1;
+  static final int BELL = 2;
+  static final int SERVERCUTEXT = 3;
+  static final int SCREENINIT = 4;
+  int type;
+  var message;
+}
+
+class RFBScreenInitMessage {
+  int width;
+  int height;
+}
+
 class _RfbProtocolVersion {
   static final int length = 12;
   String _protocol;
@@ -96,8 +111,12 @@ class RfbProtocol {
   StateMachine _stateMachine;
   ByteStream _bytes;
   var _sendToServer;
+  var _notifyClient;
+  var _logger;
   
-  RfbProtocol(callBack) {
+  RfbProtocol(callBack, client) {
+    _logger = Logging.getLogger("RfbProtocol");
+    
     _stateMachine = new StateMachine();
     _stateMachine.registerState(RFBStates.START, RFBStates.STARTEVENT, 
       RFBStates.HANDSHAKING_PROTOCOLVERSION, startRFB);
@@ -133,6 +152,8 @@ class RfbProtocol {
     
     _bytes = new ByteStream();
     _sendToServer = callBack;
+    _notifyClient = client;
+
   }
   
   processMessage(RFBInternalMessage message) {
@@ -143,15 +164,22 @@ class RfbProtocol {
   }
   
   startRFB() {
-    print("starting event");
+    _logger.Debug("starting event");
   }
   
   terminated() {
-    print("terminated");
+    _logger.Debug("terminated");
   }
   
+  sendFrameUpdate() {
+    _logger.Debug("send frameupdate to server");
+    createFrameBufferUpdateRequest(0,0,0,
+      frameBufferWidth, frameBufferHeight);
+  }
   ready() {
-    print("ready");
+    _logger.Debug("ready");
+    window.setInterval(sendFrameUpdate, 60000);
+    
   }
   
   readProtocolVersion() {
@@ -279,9 +307,24 @@ class RfbProtocol {
       serverName = name.toString();
     }
    
-    if (format.bpp != 32) {
-      print("can't handle this format: format.bpp: " + format.bpp);
-    }
+    print("bef:" + format.bef +
+      "redshift:" + format.redShift +
+      "redmax:" + format.redMax +
+      "greenshift:" + format.greenShift +
+      "greenmax:" + format.greenMax + 
+      "blueshift: " + format.blueShift +
+      "bluemax: " + format.blueMax +
+      "truecolor:" + format.tcf +
+      "bpp: " + format.bpp);
+    
+    RFBServerMessage msg = new RFBServerMessage();
+    msg.type = RFBServerMessage.SCREENINIT;
+   
+    RFBScreenInitMessage screenInit = new RFBScreenInitMessage();
+    screenInit.width = frameBufferWidth;
+    screenInit.height = frameBufferHeight;
+    msg.message = screenInit;
+    _notifyClient(msg);
     return RFBStates.MOVEON;
   }
   
@@ -293,82 +336,90 @@ class RfbProtocol {
     ConvertU16(y, message, 4);
     ConvertU16(width, message, 6);
     ConvertU16(height, message, 8);
-    return message;
+    _sendToServer(message);
   }
   
-  _processFrameBufferUpdate(List<int> data, List<int> currentData) {
-    List<int> stream = null;
-    if (currentData != null) {
-      stream = currentData;
-    } else {
-      stream = data;
-    }
-    int rectNum = U16BigToInt(stream, 2);
+  _processFrameBufferUpdate() {
+    //skip padding
+    _bytes.Advance(1);
+    
+    int rectNum = _bytes.ReadU16();
     RFBFrameBufferUpdate update = new RFBFrameBufferUpdate(rectNum);
    
-    for (int i = 0, index = 4; i < rectNum; i++) {
-      RFBFrameRectUpdate rect = new RFBFrameRectUpdate();
-      rect.x = U16BigToInt(stream, index);
-      index = index +2;
-      rect.y = U16BigToInt(stream, index);
-      index = index +2;
-      rect.width = U16BigToInt(stream, index);
-      index = index + 2;
-      rect.height = U16BigToInt(stream, index);
-      index = index + 2;
-      rect.encondingType = U32BigToInt(stream, index);
-      index = index + 4;
-      print("rect num: " + rectNum +"," + rect.width+ "," + rect.height + ", length: " + data.length);
-      int bytes = rect.width * rect.height * (format.bpp~/8);
-      if (currentData == null) {
-        currentData = new List<int>();
+    for (int i = 0; i < rectNum; i++) {
+      if (_bytes.avail < 12) {
+        _bytes.Seek(0);
+        return;
       }
       
-      if ((data.length + currentData.length) < (16 + bytes)) {
-        print("less: " + data.length +"," +currentData.length);
-        currentData.addAll(data);
-        return [false, currentData];
+      RFBFrameRectUpdate rect = new RFBFrameRectUpdate();
+      rect.x = _bytes.ReadU16();
+      rect.y = _bytes.ReadU16();
+      rect.width = _bytes.ReadU16();
+      rect.height = _bytes.ReadU16();
+      rect.encondingType = _bytes.ReadU32();
+      int pixelBits = rect.width * rect.height * (format.bpp~/8);
+
+      if (_bytes.avail < pixelBits) {
+        _bytes.Seek(0);
+        return;
       }
-     
-      currentData.addAll(data);
-      print("got all the data: " + currentData.length);
-      rect.pixelData = new List<int>(bytes);
-      for(int pixel = 0 ; pixel < bytes; ) {
+      _logger.Debug("x: " + rect.x + ";y:" + rect.y + ";w:" + rect.width +
+        ";h: " + rect.height + ";bpp:" + format.bpp);
+      //Note: no matter what bpp used by server, the client always uses 32bit/pixel
+      int pixels = rect.width * rect.height * 4;
+      rect.pixelData = new List<int>(pixels);
+      for(int pixel = 0 ; pixel < pixels; ) {
         int pixelData = 0;
         if (format.bef != 0) {
           if (format.bpp == 32) {
-            pixelData = U32BigToInt(stream, index);
-            index = index + 4;
+            pixelData = _bytes.ReadU32();
+          } else if (format.bpp == 16) {
+            pixelData = _bytes.ReadU16();
           }
         } else {
           if (format.bpp == 32) {
-            pixelData = U32ToInt(stream, index);
-            index = index + 4;
+            pixelData = _bytes.Read32();
+          } else if (format.bpp == 16) {
+            pixelData = _bytes.Read16();
           }
         }
         
-        rect.pixelData[pixel++] = (pixelData >> format.redShift) & format.redShift;
-        rect.pixelData[pixel++] = (pixelData >> format.greenShift) & format.greenMax;
-        rect.pixelData[pixel++] = (pixelData >> format.blueShift) & format.blueMax;
+        var red = (pixelData >> format.redShift) & format.redMax;
+        var green = (pixelData >> format.greenShift) & format.greenMax;
+        var blue = (pixelData >> format.blueShift) & format.blueMax;
+        if (format.bpp == 16) {
+          red = (red << 3) | (red >> 2);
+          green = (green << 2) | (green >> 4);
+          blue = (blue << 3) | (blue >> 2);
+        }
+        
+        rect.pixelData[pixel++] = red;
+        rect.pixelData[pixel++] = green;
+        rect.pixelData[pixel++] = blue;
         rect.pixelData[pixel++] = 255; //alpha channel
       }
       update.Rects[i] = rect;
     }
-    return [true, update];
+    _logger.Debug("avail: " + _bytes.avail);
+    return update;
   }
   
-  processServerMessage(List<int> data, List<int> currentData) {
-    /*
-    List<int> stream;
-    if (currentData != null) {
-      stream = currentData;
-    }else {
-      stream = data;
+  processServerMessage() {
+
+    int messageType = _bytes.ReadByte();
+    _logger.Debug("received message from server, msg type: " + messageType);
+    if (messageType == RFBServerMessage.FRAMEBUFFERUPDATE) {
+      RFBFrameBufferUpdate frameUpdate = _processFrameBufferUpdate();
+      if (frameUpdate != null) {
+        RFBServerMessage msg = new RFBServerMessage();
+        msg.type = RFBServerMessage.FRAMEBUFFERUPDATE;
+        msg.message = frameUpdate;
+        _notifyClient(msg);
+      }
+    } else if (messageType == RFBServerMessage.SETCOLOURMAPENTRIES) {
+      _logger.Debug("setcolourmap");
     }
-    int messageType = stream[0];
-    if (messageType == 0) {
-      return _processFrameBufferUpdate(data, currentData);
-    }*/
   }
   
 }

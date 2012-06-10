@@ -9,9 +9,6 @@ class RFBClientMessage {
 }
 
 class RfbClient {
-  String currentState; //"initial","connecting","connected","getVersion"
-  var states;
-  List<int> currentReceivedData;
   RfbProtocol rfb;
   WebSocket _ws;
   rdViewer _viewer;
@@ -30,67 +27,26 @@ class RfbClient {
     message.type = "dataFromClient";
     ProcessMessage(message);
   }
-
-  _getVersionStateCallBack(data){
-    var ret = rfb.readProtocolVersion(data, currentReceivedData);
-    if (ret[0] == true) {
-      var version = rfb.writeProtocolVersion();
-      _sendMessageToServer(version);
-    } 
-    return ret;
-  }
   
-  _securityHandShakingCallBack(List<int> data) {
-    var ret = rfb.readSecurityType(data, currentReceivedData);
-    if (ret[0] == true) {
-      var type = rfb.writeSecurityType();
-      if (type != null) {
-        _sendMessageToServer(type);
-      }
-    }
-    return ret;
-  }
-  
-  _securityResult(data) {
-    var ret = rfb.readSecurityResult(data, currentReceivedData);
-    if (ret[0] == true) {
-      //send clientInit message
-      var clientIn = rfb.clientInit();
-      _sendMessageToServer(clientIn);
-    }
-    return ret;
-  }
-  
-  _serverInit(data) {
-    var result = rfb.serverInit(data, null);
-    //send frameupdate
-    _viewer.initializeScreen(rfb.frameBufferWidth, rfb.frameBufferHeight);
-    _sendMessageToServer(rfb.createFrameBufferUpdateRequest(0,0,0,
-      rfb.frameBufferWidth, rfb.frameBufferHeight));
-    return result;
-  }
-  
-  _readyStateCallBack(data) {
-    var result = rfb.processServerMessage(data, currentReceivedData);
-    if (result[0] == true) {
-      RFBFrameBufferUpdate update = result[1];
+  notify(RFBServerMessage msg) {
+    if (msg.type == RFBServerMessage.SCREENINIT) {
+      RFBScreenInitMessage screen = msg.message;
+      _viewer.initializeScreen(screen.width, screen.height);
+    } else if (msg.type == RFBServerMessage.FRAMEBUFFERUPDATE) {
+      RFBFrameBufferUpdate update = msg.message;
       for(int i = 0; i < update.Rects.length; i++) {
         RFBFrameRectUpdate rect = update.Rects[i];
         _viewer.drawFrame(rect.pixelData, rect.x, rect.y, rect.width, rect.height );
       }
     }
-    return result;
   }
   
   RfbClient() {
-    rfb = new RfbProtocol(_processDataFromClient);
-    currentReceivedData = null;
+    rfb = new RfbProtocol(_processDataFromClient, notify);
   }
   
   _initialize(ServerInfo) {
-    //connect to server  
-    
-    bool _isConnected = false;
+    //connect to server 
 
     _ws = new WebSocket("ws://" + ServerInfo[0] + ':' + ServerInfo[1] + "/ws");
     _ws.on.open.add((a) {
