@@ -178,7 +178,7 @@ class RfbProtocol {
   }
   ready() {
     _logger.Debug("ready");
-    window.setInterval(sendFrameUpdate, 60000);
+    window.setInterval(sendFrameUpdate, 10000);
     
   }
   
