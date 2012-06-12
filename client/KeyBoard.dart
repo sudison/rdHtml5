@@ -39,17 +39,109 @@ class KeySyms {
   static final int XK_Down = 0xff54;
   static final int XK_Return = 0xff0d;
   static final int XK_Tab = 0xff09;
+  static final int XK_LEFT = 0xff51;
+  static final int XK_RIGHT = 0xff53;
+  static final int XK_BACKSPACE = 0xff08;
+  static final int XK_KP_SPACE = 0xff80;
 }
 
 class UsKeyBoardMap {
    var map;
+   int KEY_TAB = 9;
+   int KEY_ENTER = 13;
+   int KEY_BACKSPACE = 8;
+   int KEY_0 = 48;
+   int KEY_1 = 49;
+   int KEY_2 = 50;
+   int KEY_3 = 51;
+   int KEY_4 = 52;
+   int KEY_5 = 53;
+   int KEY_6 = 54;
+   int KEY_7 = 55;
+   int KEY_8 = 56;
+   int KEY_9 = 57;
+   
+   int KEY_a = 65;
+   int KEY_b = 66;
+   int KEY_c = 67;
+   int KEY_d = 68;
+   int KEY_e = 69;
+   int KEY_f = 70;
+   int KEY_g = 71;
+   int KEY_h = 72;
+   int KEY_i = 73;
+   int KEY_j = 74;
+   int KEY_k = 75;
+   int KEY_l = 76;
+   int KEY_m = 77;
+   int KEY_n = 78;
+   int KEY_o = 79;
+   int KEY_p = 80;
+   int KEY_q = 81;
+   int KEY_r = 82;
+   int KEY_s = 83;
+   int KEY_t = 84;
+   int KEY_u = 85;
+   int KEY_v = 86;
+   int KEY_w = 87;
+   int KEY_x = 88;
+   int KEY_y = 89;
+   int KEY_z = 90;
+   
+   int KEY_UP = 38;
+   int KEY_DOWN = 40;
+   int KEY_LEFT = 39;
+   int KEY_RIGHT = 37;
+   int KEY_SPACE = 32;
    UsKeyBoardMap() {
      map = new Map<int, int>();
-     map[9] = KeySyms.XK_Tab;
-     map[13] = KeySyms.XK_Return;
-     map[65] = KeySyms.XK_a;
-     map[38] = KeySyms.XK_Up;
-     map[40] = KeySyms.XK_Down;
+     map[KEY_TAB] = KeySyms.XK_Tab;
+     map[KEY_ENTER] = KeySyms.XK_Return;
+     map[KEY_a] = KeySyms.XK_a;
+     map[KEY_UP] = KeySyms.XK_Up;
+     map[KEY_DOWN] = KeySyms.XK_Down;
+     map[KEY_LEFT] = KeySyms.XK_LEFT;
+     map[KEY_RIGHT] = KeySyms.XK_RIGHT;
+     map[KEY_BACKSPACE] = KeySyms.XK_BACKSPACE;
+     map[KEY_0] = KeySyms.XK_0;
+     map[KEY_1] = KeySyms.XK_1;
+     map[KEY_2] = KeySyms.XK_2;
+     map[KEY_3] = KeySyms.XK_3;
+     map[KEY_4] = KeySyms.XK_4;
+     map[KEY_5] = KeySyms.XK_5;
+     map[KEY_6] = KeySyms.XK_6;
+     map[KEY_7] = KeySyms.XK_7;
+     map[KEY_8] = KeySyms.XK_8;
+     map[KEY_9] = KeySyms.XK_9;
+     
+     map[KEY_a] = KeySyms.XK_a;
+     map[KEY_b] = KeySyms.XK_b;
+     map[KEY_c] = KeySyms.XK_c;
+     map[KEY_d] = KeySyms.XK_d;
+     map[KEY_e] = KeySyms.XK_e;
+     map[KEY_f] = KeySyms.XK_f;
+     map[KEY_g] = KeySyms.XK_g;
+     map[KEY_h] = KeySyms.XK_h;
+     map[KEY_i] = KeySyms.XK_i;
+     map[KEY_j] = KeySyms.XK_j;
+     map[KEY_k] = KeySyms.XK_k;
+     map[KEY_l] = KeySyms.XK_l;
+     map[KEY_m] = KeySyms.XK_m;
+     map[KEY_n] = KeySyms.XK_n;
+     map[KEY_o] = KeySyms.XK_o;
+     map[KEY_p] = KeySyms.XK_p;
+     map[KEY_q] = KeySyms.XK_q;
+     map[KEY_r] = KeySyms.XK_r;
+     map[KEY_s] = KeySyms.XK_s;
+     map[KEY_t] = KeySyms.XK_t;
+     map[KEY_u] = KeySyms.XK_u;
+     map[KEY_v] = KeySyms.XK_v;
+     map[KEY_w] = KeySyms.XK_w;
+     map[KEY_x] = KeySyms.XK_x;
+     map[KEY_y] = KeySyms.XK_y;
+     map[KEY_z] = KeySyms.XK_z;
+     
+     map[KEY_SPACE] = KeySyms.XK_KP_SPACE;
    }
    
    getKeySyms(int keyCode) {

@@ -93,8 +93,12 @@ class RfbClient {
   }
   
   SendKeyEventToServer(BrowserKeyEvent event) {
+    int keySyms = _keyMap.getKeySyms(event.keyCode);
+    if (keySyms == null) {
+      print("unhandled keySyms" + keySyms);
+    }
     RFBKeyEventMessage msg = new  RFBKeyEventMessage(event.keyDown, 
-      _keyMap.getKeySyms(event.keyCode));
+      keySyms);
     _sendMessageToServer(msg.toData());
   }
 }
