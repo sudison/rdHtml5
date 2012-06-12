@@ -6,6 +6,29 @@ class RFBSecurityType {
   //TODO: add other types
 }
 
+class RFBKeyEventMessage {
+  int _messageType;
+  int _downFlag;
+  int _key;
+  
+  
+  RFBKeyEventMessage(int down, int key) {
+    _messageType = 4;
+    _downFlag = down;
+    _key = key;
+  }
+  
+  List<int> toData() {
+    List<int> data = new List<int>(8);
+    data[0] = _messageType;
+    data[1] = _downFlag;
+    data[2] = 0;
+    data[3] = 0;
+    ConvertU32(_key, data, 4);
+    return data;
+  }
+}
+
 class RFBServerMessage {
   static final int FRAMEBUFFERUPDATE = 0;
   static final int SETCOLOURMAPENTRIES = 1;

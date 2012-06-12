@@ -1,13 +1,46 @@
 
+class BrowserKeyEvent {
+  int keyDown;
+  int keyCode;
+}
+
 class rdViewer {
   CanvasElement canvas;
   CanvasRenderingContext2D ctx;
   var _logger;
+  var _client;
+  
   rdViewer() {
     _logger = Logging.getLogger("viewer");
     canvas = document.query("#canvas");
     ctx = canvas.getContext("2d");
+    window.on.keyDown.add(_keyDownListener);
+    window.on.keyPress.add(_keyPressListener);
+    window.on.keyUp.add(_keyUpListener);
    }
+  
+  setClient(client) {
+    _client = client;
+  }
+  
+  _keyDownListener(KeyboardEvent event) {
+    BrowserKeyEvent e = new BrowserKeyEvent();
+    e.keyDown = 1;
+    e.keyCode = event.keyCode;
+    _client.SendKeyEventToServer(e);
+  }
+  
+  _keyPressListener(KeyboardEvent event) {
+    print(event.charCode);
+  }
+  
+  _keyUpListener(KeyboardEvent event) {
+    BrowserKeyEvent e = new BrowserKeyEvent();
+    e.keyDown = 0;
+    e.keyCode = event.keyCode;
+    _client.SendKeyEventToServer(e);
+  }
+  
   
   initializeScreen(int width, int height) {
     canvas.width = width;

@@ -12,6 +12,7 @@ class RfbClient {
   RfbProtocol rfb;
   WebSocket _ws;
   rdViewer _viewer;
+  UsKeyBoardMap _keyMap;
   
   _initialStateCallBack(data) {
     
@@ -43,6 +44,7 @@ class RfbClient {
   
   RfbClient() {
     rfb = new RfbProtocol(_processDataFromClient, notify);
+    _keyMap = new UsKeyBoardMap();
   }
   
   _initialize(ServerInfo) {
@@ -88,5 +90,11 @@ class RfbClient {
     } else {
       
     }
+  }
+  
+  SendKeyEventToServer(BrowserKeyEvent event) {
+    RFBKeyEventMessage msg = new  RFBKeyEventMessage(event.keyDown, 
+      _keyMap.getKeySyms(event.keyCode));
+    _sendMessageToServer(msg.toData());
   }
 }

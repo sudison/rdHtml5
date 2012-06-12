@@ -9,12 +9,15 @@
 #source('RFBStateMachine.dart');
 #source('ByteStream.dart');
 #source('Logging.dart');
+#source('KeyBoard.dart');
 
 
 void main() {
   RfbClient client = new RfbClient();
   rdViewer vw = new rdViewer();
   client.setViewer(vw);
+  vw.setClient(client);
+  
   RFBClientMessage message = new RFBClientMessage();
   message.type = "initialize";
   message.data = ["localhost", '8080'];
